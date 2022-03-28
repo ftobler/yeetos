@@ -162,25 +162,32 @@ void scheduler_systick_handler() {
 __attribute((naked)) void scheduler_pendSV_handler() {
 	__disable_irq();
 	register uint32_t* stackPointer asm ("sp");
-	register uint32_t register8 asm ("r8");
-	register uint32_t register9 asm ("r9");
-	register uint32_t register10 asm ("r10");
-	register uint32_t register11 asm ("r11");
+//	register uint32_t register8 asm ("r8");
+//	register uint32_t register9 asm ("r9");
+//	register uint32_t register10 asm ("r10");
+//	register uint32_t register11 asm ("r11");
 	if (currentTask != nextTask && currentTask) {
 		asm volatile("push {r4-r7}"); //push additional registers
-		asm volatile("push {r8}"); //push additional registers
-		*(--stackPointer) = register8; //these registers can not be handled by push
-		*(--stackPointer) = register9;
-		*(--stackPointer) = register10;
-		*(--stackPointer) = register11;
+		asm volatile("mov r3, r8\n push {r3}");
+		asm volatile("mov r3, r9\n push {r3}");
+		asm volatile("mov r3, r10\n push {r3}");
+		asm volatile("mov r3, r11\n push {r3}");
+//		*(--stackPointer) = register8; //these registers can not be handled by push
+//		*(--stackPointer) = register9;
+//		*(--stackPointer) = register10;
+//		*(--stackPointer) = register11;
 		currentTask->stackPointer = stackPointer;
 	}
 
 	stackPointer = nextTask->stackPointer;
-	register11 = *(stackPointer++); //these registers can not be handled by push
-	register10 = *(stackPointer++);
-	register9  = *(stackPointer++);
-	register8  = *(stackPointer++);
+	asm volatile("pop {r3}\n mov r11, r3");
+	asm volatile("pop {r3}\n mov r10, r3");
+	asm volatile("pop {r3}\n mov r9, r3");
+	asm volatile("pop {r3}\n mov r8, r3");
+//	register11 = *(stackPointer++); //these registers can not be handled by push
+//	register10 = *(stackPointer++);
+//	register9  = *(stackPointer++);
+//	register8  = *(stackPointer++);
 	asm volatile("pop {r4-r7}"); //pop additional registers
 	currentTask = nextTask;
 

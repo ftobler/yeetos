@@ -172,14 +172,14 @@ static void taskFn0() {
 static void taskFn1() {
 	while (1) {
 		counter1++;
-		//scheduler_task_sleep(100);
+		scheduler_task_sleep(8);
 		scheduler_event_wait(0x0002);
 	}
 }
 static void taskFn2() {
 	while (1) {
 		counter2++;
-		scheduler_task_sleep(100);
+		scheduler_task_sleep(10);
 		scheduler_event_set(1, 0x0002);
 	}
 }
