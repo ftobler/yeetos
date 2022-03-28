@@ -168,6 +168,7 @@ __attribute((naked)) void scheduler_pendSV_handler() {
 	register uint32_t register11 asm ("r11");
 	if (currentTask != nextTask && currentTask) {
 		asm volatile("push {r4-r7}"); //push additional registers
+		asm volatile("push {r8}"); //push additional registers
 		*(--stackPointer) = register8; //these registers can not be handled by push
 		*(--stackPointer) = register9;
 		*(--stackPointer) = register10;
@@ -176,10 +177,10 @@ __attribute((naked)) void scheduler_pendSV_handler() {
 	}
 
 	stackPointer = nextTask->stackPointer;
-	*(stackPointer++) = register11; //these registers can not be handled by push
-	*(stackPointer++) = register10;
-	*(stackPointer++) = register9;
-	*(stackPointer++) = register8;
+	register11 = *(stackPointer++); //these registers can not be handled by push
+	register10 = *(stackPointer++);
+	register9  = *(stackPointer++);
+	register8  = *(stackPointer++);
 	asm volatile("pop {r4-r7}"); //pop additional registers
 	currentTask = nextTask;
 
