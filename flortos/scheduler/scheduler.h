@@ -37,28 +37,39 @@ void scheduler_init();
 
 /**
  * Add a task to RTOS
+ * the ID of the task is equal to it's priority.
+ *     [0] is always the idle task.
+ *     [1] has higher priority than idle, but lowest otherwise
+ *     [2] has higher priority than [1] but less than [n]
+ *     [n] has the highest priority
+ * is is not allowed to produce gaps between the IDs, each task from 0 to n needs to be initialized.
  */
 void scheduler_addTask(uint32_t id, SchedulerTaskFunction function, uint8_t* stackBuffer, uint32_t stackSize);
 
 /**
  * start RTOS
+ * No line gets executed after this function.
+ * The current stack memory can be used for something else.
  */
 void scheduler_join();
 
 /**
  * Task sleep function. Call from within a task.
- * Never call it from idle task (0)
+ * Never call it from idle task [0]
  */
 void scheduler_task_sleep(uint32_t time);
 
 /**
  * Wait for some event flags
- * If a flag the task is waiting on is set it is awaken
+ * If a flag the task is waiting on is set this function exits.
+ * Never call it from idle task [0]
+ *
+ * Returns the set flags at wake time. The wait bits will be reset.
  */
 uint32_t scheduler_event_wait(uint32_t eventWaitMask);
 
 /**
- * Set remote tasks event flags
+ * Set remote tasks event flags to wake them up from wait state
  */
 void scheduler_event_set(uint32_t id, uint32_t eventSetMask);
 
