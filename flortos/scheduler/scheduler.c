@@ -18,6 +18,7 @@ static SchedulerTask_t tasks[8] = {0};
 static uint32_t highestTask = 0;
 
 static void scheduler_work();
+static void scheduler_task_time_update();
 
 
 void scheduler_init() {
@@ -101,14 +102,6 @@ static void scheduler_work() {
 	//go through every task id, starting from the highest priority task
 	while (id) {
 		//update task
-		if (task->state == STATE_WAIT_TIME) {
-			//handle tasks waiting conditions
-			task->timeout--;
-			if (!task->timeout) {
-				//task is ready to run
-				task->state = STATE_READY;
-			}
-		} else
 		if (task->state == STATE_WAIT_FLAG) {
 			//check if at least one flag which is masked is set
 			if (task->eventFlags & task->eventMask) {
@@ -139,8 +132,30 @@ static void scheduler_work() {
 	}
 }
 
+
+static void scheduler_task_time_update() {
+	uint32_t id = highestTask;
+	SchedulerTask_t* task = &tasks[id];
+	//go through every task id, starting from the highest priority task
+	while (id) {
+		//update task
+		if (task->state == STATE_WAIT_TIME) {
+			//handle tasks waiting conditions
+			task->timeout--;
+			if (!task->timeout) {
+				//task is ready to run
+				task->state = STATE_READY;
+			}
+		}
+		//loop variables
+		id--;
+		task--;
+	}
+}
+
 void scheduler_systick_handler() {
 	uwTick++;
+	scheduler_task_time_update();
 	scheduler_work();
 }
 
