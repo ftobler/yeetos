@@ -54,8 +54,10 @@ static void MX_GPIO_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+static void taskFn0();
 static void taskFn1();
 static void taskFn2();
+static uint8_t stack0[32];
 static uint8_t stack1[512];
 static uint8_t stack2[512];
 /* USER CODE END 0 */
@@ -90,8 +92,9 @@ int main(void)
   MX_GPIO_Init();
   /* USER CODE BEGIN 2 */
   scheduler_init();
-  scheduler_addTask(taskFn1, 0, stack1, 512);
-  scheduler_addTask(taskFn2, 0, stack2, 512);
+  scheduler_addTask(0, taskFn0, stack0, 32);  //idle task
+  scheduler_addTask(1, taskFn1, stack1, 512);
+  scheduler_addTask(2, taskFn2, stack2, 512);  //highest priority task is the last task
   scheduler_join();
 
   /* USER CODE END 2 */
@@ -157,18 +160,25 @@ static void MX_GPIO_Init(void)
 /* USER CODE BEGIN 4 */
 
 
+static int counter0 = 0;
 static int counter1 = 0;
 static int counter2 = 0;
+static void taskFn0() {
+	while (1) {
+		counter0++;
+		__WFI();
+	}
+}
 static void taskFn1() {
 	while (1) {
 		counter1++;
-		HAL_Delay(100);
+		scheduler_task_sleep(100);
 	}
 }
 static void taskFn2() {
 	while (1) {
 		counter2++;
-		HAL_Delay(10);
+		scheduler_task_sleep(10);
 	}
 }
 
