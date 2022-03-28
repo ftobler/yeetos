@@ -71,19 +71,27 @@ void scheduler_join() {
 
 void scheduler_task_sleep(uint32_t time) {
 	SchedulerTask_t* task = currentTask;
-	task->state = STATE_WAIT_TIME;
 	task->timeout = time;
+	task->state = STATE_WAIT_TIME;
 	scheduler_work();
 }
 
 
 uint32_t scheduler_event_wait(uint32_t eventWaitMask) {
-
+	SchedulerTask_t* task = currentTask;
+	task->eventMask = eventWaitMask;
+	task->state = STATE_WAIT_FLAG;
+	scheduler_work();
+	uint32_t events = task->eventFlags;
+	task->eventFlags &= ~eventWaitMask;  //clear the flags the task was waiting for
+	return events;
 }
 
 
 void scheduler_event_set(uint32_t id, uint32_t eventSetMask) {
-
+	//set remote tasks flags
+	tasks[id].eventFlags |= eventSetMask;
+    scheduler_work();
 }
 
 
@@ -97,6 +105,14 @@ static void scheduler_work() {
 			//handle tasks waiting conditions
 			task->timeout--;
 			if (!task->timeout) {
+				//task is ready to run
+				task->state = STATE_READY;
+			}
+		} else
+		if (task->state == STATE_WAIT_FLAG) {
+			//check if at least one flag which is masked is set
+			if (task->eventFlags & task->eventMask) {
+				//task is ready to run
 				task->state = STATE_READY;
 			}
 		}
