@@ -166,7 +166,7 @@ __attribute((naked)) void scheduler_pendSV_handler() {
 //	register uint32_t register9 asm ("r9");
 //	register uint32_t register10 asm ("r10");
 //	register uint32_t register11 asm ("r11");
-	if (currentTask != nextTask && currentTask) {
+	if (currentTask) {
 		asm volatile("push {r4-r7}"); //push additional registers
 		asm volatile("mov r3, r8\n push {r3}");
 		asm volatile("mov r3, r9\n push {r3}");
