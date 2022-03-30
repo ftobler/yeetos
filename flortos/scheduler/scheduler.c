@@ -176,20 +176,21 @@ void scheduler_systick_handler() {
 __attribute((naked)) void scheduler_pendSV_handler() {
 	__disable_irq();
 	register uint32_t* stackPointer asm ("sp");
+
 	if (currentTask) {
 		asm volatile("push {r4-r7}"); //push additional registers
-		asm volatile("mov r3, r8\n push {r3}"); //these registers can not be handled by push
-		asm volatile("mov r3, r9\n push {r3}");
-		asm volatile("mov r3, r10\n push {r3}");
-		asm volatile("mov r3, r11\n push {r3}");
+		asm volatile("mov r3, r8  \n push {r3}" : : : "r3"); //these registers can not be handled by push
+		asm volatile("mov r3, r9  \n push {r3}" : : : "r3"); //"r3" in the clobber list informs the compiler that r3 will be used in this section
+		asm volatile("mov r3, r10 \n push {r3}" : : : "r3");
+		asm volatile("mov r3, r11 \n push {r3}" : : : "r3");
 		currentTask->stackPointer = stackPointer;
 	}
 
 	stackPointer = nextTask->stackPointer;
-	asm volatile("pop {r3}\n mov r11, r3");//these registers can not be handled by push
-	asm volatile("pop {r3}\n mov r10, r3");
-	asm volatile("pop {r3}\n mov r9, r3");
-	asm volatile("pop {r3}\n mov r8, r3");
+	asm volatile("pop {r3}\n mov r11, r3" : : : "r3");//these registers can not be handled by push
+	asm volatile("pop {r3}\n mov r10, r3" : : : "r3");
+	asm volatile("pop {r3}\n mov  r9, r3" : : : "r3");
+	asm volatile("pop {r3}\n mov  r8, r3" : : : "r3");
 	asm volatile("pop {r4-r7}"); //pop additional registers
 	currentTask = nextTask;
 
