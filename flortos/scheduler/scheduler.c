@@ -161,14 +161,6 @@ static void scheduler_task_time_update() {
 			}
 		}
 
-//		if (task->state == STATE_WAIT_TIME) {
-//			//handle tasks waiting conditions
-//			task->timeout--;
-//			if (!task->timeout) {
-//				//task is ready to run
-//				task->state = STATE_READY;
-//			}
-//		}
 		//loop variables
 		id--;
 		task--;
