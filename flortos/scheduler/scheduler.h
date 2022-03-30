@@ -68,10 +68,23 @@ void scheduler_task_sleep(uint32_t time);
  */
 uint32_t scheduler_event_wait(uint32_t eventWaitMask);
 
+
+/**
+ * Wait for some event flags
+ * If a flag the task is waiting on is set this function exits.
+ * Never call it from idle task [0]
+ *
+ * Set a timeout for this call to return even if event is not present
+ *
+ * Returns the set flags at wake time. The wait bits will be reset.
+ */
+uint32_t scheduler_event_wait_timeout(uint32_t eventWaitMask, uint32_t time);
+
 /**
  * Set remote tasks event flags to wake them up from wait state
  */
 void scheduler_event_set(uint32_t id, uint32_t eventSetMask);
+
 
 void scheduler_systick_handler();
 void scheduler_pendSV_handler();

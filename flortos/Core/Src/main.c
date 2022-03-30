@@ -197,14 +197,14 @@ static void taskFn2() {
 static void taskFn3() {
 	while (1) {
 		counter3++;
-		scheduler_task_sleep(103);
+		scheduler_task_sleep(100);
 		scheduler_event_set(1, 0x0008);
 	}
 }
 static void taskFn4() {
 	while (1) {
 		counter4++;
-		scheduler_event_wait(0x0004);
+		scheduler_event_wait_timeout(0x0004, 75);
 	}
 }
 

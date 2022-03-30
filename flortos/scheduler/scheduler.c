@@ -9,8 +9,10 @@
 #include "stm32f0xx.h"
 
 
+#define USE_C_CODE_PEND_SV 0
 
-static SchedulerTask_t* currentTask;
+
+static SchedulerTask_t* currentTask = 0;
 static SchedulerTask_t* nextTask;
 
 
@@ -88,6 +90,17 @@ uint32_t scheduler_event_wait(uint32_t eventWaitMask) {
 	return events;
 }
 
+uint32_t scheduler_event_wait_timeout(uint32_t eventWaitMask, uint32_t time) {
+	SchedulerTask_t* task = currentTask;
+	task->eventMask = eventWaitMask;
+	task->timeout = time;
+	task->state = STATE_WAIT_FLAG;
+	scheduler_work();
+	uint32_t events = task->eventFlags;
+	task->eventFlags &= ~eventWaitMask;  //clear the flags the task was waiting for
+	return events;
+}
+
 
 void scheduler_event_set(uint32_t id, uint32_t eventSetMask) {
 	//set remote tasks flags
@@ -139,14 +152,23 @@ static void scheduler_task_time_update() {
 	//go through every task id, starting from the highest priority task
 	while (id) {
 		//update task
-		if (task->state == STATE_WAIT_TIME) {
-			//handle tasks waiting conditions
-			task->timeout--;
-			if (!task->timeout) {
-				//task is ready to run
+		if (task->timeout) {
+			if (task->timeout == 1) {
+				task->timeout = 0;
 				task->state = STATE_READY;
+			} else {
+				task->timeout--;
 			}
 		}
+
+//		if (task->state == STATE_WAIT_TIME) {
+//			//handle tasks waiting conditions
+//			task->timeout--;
+//			if (!task->timeout) {
+//				//task is ready to run
+//				task->state = STATE_READY;
+//			}
+//		}
 		//loop variables
 		id--;
 		task--;
@@ -162,36 +184,23 @@ void scheduler_systick_handler() {
 __attribute((naked)) void scheduler_pendSV_handler() {
 	__disable_irq();
 	register uint32_t* stackPointer asm ("sp");
-//	register uint32_t register8 asm ("r8");
-//	register uint32_t register9 asm ("r9");
-//	register uint32_t register10 asm ("r10");
-//	register uint32_t register11 asm ("r11");
 	if (currentTask) {
 		asm volatile("push {r4-r7}"); //push additional registers
-		asm volatile("mov r3, r8\n push {r3}");
+		asm volatile("mov r3, r8\n push {r3}"); //these registers can not be handled by push
 		asm volatile("mov r3, r9\n push {r3}");
 		asm volatile("mov r3, r10\n push {r3}");
 		asm volatile("mov r3, r11\n push {r3}");
-//		*(--stackPointer) = register8; //these registers can not be handled by push
-//		*(--stackPointer) = register9;
-//		*(--stackPointer) = register10;
-//		*(--stackPointer) = register11;
 		currentTask->stackPointer = stackPointer;
 	}
 
 	stackPointer = nextTask->stackPointer;
-	asm volatile("pop {r3}\n mov r11, r3");
+	asm volatile("pop {r3}\n mov r11, r3");//these registers can not be handled by push
 	asm volatile("pop {r3}\n mov r10, r3");
 	asm volatile("pop {r3}\n mov r9, r3");
 	asm volatile("pop {r3}\n mov r8, r3");
-//	register11 = *(stackPointer++); //these registers can not be handled by push
-//	register10 = *(stackPointer++);
-//	register9  = *(stackPointer++);
-//	register8  = *(stackPointer++);
 	asm volatile("pop {r4-r7}"); //pop additional registers
 	currentTask = nextTask;
 
     __enable_irq();
-
     asm volatile("BX lr");  //return
 }
