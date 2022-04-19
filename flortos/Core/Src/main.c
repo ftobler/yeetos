@@ -204,9 +204,20 @@ static void MX_TIM14_Init(void)
   */
 static void MX_GPIO_Init(void)
 {
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
 
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOA_CLK_ENABLE();
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin : PA4 */
+  GPIO_InitStruct.Pin = GPIO_PIN_4;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
 }
 
@@ -232,7 +243,7 @@ static void taskFn1() {
 		uint8_t event = scheduler_event_wait(0x000A);
 		scheduler_task_sleep(8);
 		if (event & 0x0008)
-		scheduler_event_set(4, 0x0004);
+			scheduler_event_set(4, 0x0004);
 	}
 }
 static void taskFn2() {
@@ -245,6 +256,7 @@ static void taskFn2() {
 static void taskFn3() {
 	while (1) {
 		counter3++;
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 1);
 		scheduler_task_sleep(100);
 		scheduler_event_set(1, 0x0008);
 	}
@@ -253,6 +265,7 @@ static void taskFn4() {
 	while (1) {
 		counter4++;
 		scheduler_event_wait_timeout(0x0004, 75);
+		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 0);
 	}
 }
 static void taskFn5() {

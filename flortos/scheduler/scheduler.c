@@ -12,8 +12,8 @@
 #define USE_C_CODE_PEND_SV 0
 
 
-static SchedulerTask_t* currentTask = 0;
-static SchedulerTask_t* nextTask;
+static volatile SchedulerTask_t* currentTask = 0;
+static volatile SchedulerTask_t* nextTask;
 
 
 static SchedulerTask_t tasks[8] = {0};
@@ -67,13 +67,13 @@ void scheduler_addTask(uint32_t id, SchedulerTaskFunction function, uint8_t* sta
 
 void scheduler_join() {
 	__disable_irq();
-	scheduler_systick_handler();
+	scheduler_work();
 	__enable_irq();
 }
 
 
 void scheduler_task_sleep(uint32_t time) {
-	SchedulerTask_t* task = currentTask;
+	volatile SchedulerTask_t* task = currentTask;
 	task->timeout = time;
 	task->state = STATE_WAIT_TIME;
 	scheduler_work();
@@ -81,7 +81,7 @@ void scheduler_task_sleep(uint32_t time) {
 
 
 uint32_t scheduler_event_wait(uint32_t eventWaitMask) {
-	SchedulerTask_t* task = currentTask;
+	volatile SchedulerTask_t* task = currentTask;
 	task->eventMask = eventWaitMask;
 	task->state = STATE_WAIT_FLAG;
 	scheduler_work();
@@ -91,7 +91,7 @@ uint32_t scheduler_event_wait(uint32_t eventWaitMask) {
 }
 
 uint32_t scheduler_event_wait_timeout(uint32_t eventWaitMask, uint32_t time) {
-	SchedulerTask_t* task = currentTask;
+	volatile SchedulerTask_t* task = currentTask;
 	task->eventMask = eventWaitMask;
 	task->timeout = time;
 	task->state = STATE_WAIT_FLAG;
@@ -173,9 +173,9 @@ void scheduler_systick_handler() {
 	scheduler_work();
 }
 
-__attribute((naked)) void scheduler_pendSV_handler() {
+__attribute((naked)) __attribute__((optimize("O0"))) void scheduler_pendSV_handler() {
 	__disable_irq();
-	register uint32_t* stackPointer asm ("sp");
+	volatile register uint32_t* stackPointer asm ("sp");
 
 	if (currentTask) {
 		asm volatile("push {r4-r7}"); //push additional registers
@@ -183,7 +183,7 @@ __attribute((naked)) void scheduler_pendSV_handler() {
 		asm volatile("mov r3, r9  \n push {r3}" : : : "r3","memory"); //"r3" in the clobber list informs the compiler that r3 will be used in this section
 		asm volatile("mov r3, r10 \n push {r3}" : : : "r3","memory"); //"memory" in the clobber list informs the compiler that memory content may have changed
 		asm volatile("mov r3, r11 \n push {r3}" : : : "r3","memory"); //"sp" in clobber list is deprecated and not needed
-		currentTask->stackPointer = stackPointer;
+		currentTask->stackPointer = (uint32_t*)stackPointer;
 	}
 
 	stackPointer = nextTask->stackPointer;
