@@ -5,8 +5,8 @@
  *      Author: ftobler
  */
 
-#include <flortos.h>
-#include <stm32_hal.h>
+#include "flortos.h"
+#include "stm32_hal.h"
 
 
 static volatile SchedulerTask_t* currentTask = 0;
