@@ -6,10 +6,7 @@
  */
 
 #include "scheduler.h"
-#include "stm32f0xx.h"
-
-
-#define USE_C_CODE_PEND_SV 0
+#include "stm32_hal.h"
 
 
 static volatile SchedulerTask_t* currentTask = 0;
@@ -108,6 +105,10 @@ void scheduler_event_set(uint32_t id, uint32_t eventSetMask) {
     scheduler_work();
 }
 
+void scheduler_event_clear(uint32_t eventMask) {
+	volatile SchedulerTask_t* task = currentTask;
+	task->eventFlags &= ~eventMask;
+}
 
 static void scheduler_work() {
 	uint32_t id = highestTask;

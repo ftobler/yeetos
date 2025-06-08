@@ -8,6 +8,10 @@
 #ifndef SCHEDULER_H_
 #define SCHEDULER_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "stdint.h"
 
 
@@ -86,10 +90,18 @@ uint32_t scheduler_event_wait_timeout(uint32_t eventWaitMask, uint32_t time);
 void scheduler_event_set(uint32_t id, uint32_t eventSetMask);
 
 
+void scheduler_event_clear(uint32_t eventMask);
+
+
 void scheduler_systick_handler();
+
+
 void scheduler_pendSV_handler();
 
 
+#ifdef __cplusplus
+}
+#endif
 
 
 #endif /* SCHEDULER_H_ */
