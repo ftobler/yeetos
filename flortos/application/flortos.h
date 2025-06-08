@@ -15,6 +15,10 @@ extern "C" {
 #include "stdint.h"
 
 
+// for aligning the stack to 4 bytes
+#define STACK_ATTR __attribute__((aligned(4)))
+
+
 enum {
 	STATE_STOPPED = 0, //task is not started/initialized
 	STATE_RUNNING = 1,     //task is currently running

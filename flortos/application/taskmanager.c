@@ -22,12 +22,12 @@ static void taskFn4();
 static void taskFn5();
 
 // task stacks
-static uint8_t stack0[128];
-static uint8_t stack1[128];
-static uint8_t stack2[128];
-static uint8_t stack3[128];
-static uint8_t stack4[128];
-static uint8_t stack5[128];
+STACK_ATTR static uint8_t stack0[128];
+STACK_ATTR static uint8_t stack1[128];
+STACK_ATTR static uint8_t stack2[128];
+STACK_ATTR static uint8_t stack3[128];
+STACK_ATTR static uint8_t stack4[128];
+STACK_ATTR static uint8_t stack5[128];
 
 // some demo app variables
 static int counter0 = 0;
@@ -55,7 +55,7 @@ void taskmanager_start() {
 static void taskFn0() {
 	while (1) {
 		counter0++;
-		__WFI();
+		__WFI();  // power saving feature(s) here
 	}
 }
 
