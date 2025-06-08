@@ -5,7 +5,7 @@
  *      Author: ftobler
  */
 
-#include "scheduler.h"
+#include <flortos.h>
 #include "stm32_hal.h"
 
 

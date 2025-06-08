@@ -5,8 +5,8 @@
  *      Author: ftobler
  */
 
-#ifndef SCHEDULER_H_
-#define SCHEDULER_H_
+#ifndef FLORTOS_H_
+#define FLORTOS_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -104,4 +104,4 @@ void scheduler_pendSV_handler();
 #endif
 
 
-#endif /* SCHEDULER_H_ */
+#endif /* FLORTOS_H_ */

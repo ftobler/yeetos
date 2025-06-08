@@ -6,8 +6,8 @@
  */
 
 
+#include <flortos.h>
 #include "taskmanager.h"
-#include "scheduler.h"
 #include "stm32_hal.h"
 
 
