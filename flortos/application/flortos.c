@@ -52,8 +52,8 @@ void scheduler_addTask(uint32_t id, SchedulerTaskFunction function, uint8_t* sta
 	#ifdef SCHEDULER_ARCHITECURE_M0plus
 
     // not put data on stack so that if it is popped the task is ready to run
-	*(--stackPointer) = 1U << 24; //xPSR (put by ISR)
-	*(--stackPointer) = (uint32_t)function; //PC (put by ISR-HW)
+	*(--stackPointer) = 1U << 24; // xPSR (put by ISR)
+	*(--stackPointer) = (uint32_t)function; // PC (put by ISR-HW)
 	*(--stackPointer) = 0x0000000E; // LR  (put by ISR-HW)
 	*(--stackPointer) = 0x0000000C; // R12 (put by ISR-HW)
 	*(--stackPointer) = 0x00000003; // R3  (put by ISR-HW)
@@ -73,8 +73,8 @@ void scheduler_addTask(uint32_t id, SchedulerTaskFunction function, uint8_t* sta
 	#ifdef SCHEDULER_ARCHITECURE_M4F
 
     //not put data on stack so that if it is popped the task is ready to run
-	*(--stackPointer) = 1U << 24; //xPSR (put by ISR)
-	*(--stackPointer) = (uint32_t)function; //PC (put by ISR-HW)
+	*(--stackPointer) = 1U << 24; // xPSR (put by ISR)
+	*(--stackPointer) = (uint32_t)function; // PC (put by ISR-HW)
 	*(--stackPointer) = 0x0000000E; // LR  (put by ISR-HW) //also r14
 	*(--stackPointer) = 0x0000000C; // R12 (put by ISR-HW)
 	*(--stackPointer) = 0x00000003; // R3  (put by ISR-HW)
@@ -167,7 +167,7 @@ static void scheduler_work() {
 	while (id) {
 		// update task
 		if (task->state == STATE_WAIT_FLAG) {
-			//c heck if at least one flag which is masked is set
+			// check if at least one flag which is masked is set
 			if (task->eventFlags & task->eventMask) {
 				// task is ready to run
 				task->state = STATE_READY;
@@ -175,7 +175,7 @@ static void scheduler_work() {
 		}
 		// if task is runnable then run it.
 		if (task->state == STATE_READY) {
-			//found task to run. Exit loop.
+			// found task to run. Exit loop.
 			nextTask = task;
 			break;
 		}
