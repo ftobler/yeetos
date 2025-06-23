@@ -137,7 +137,7 @@ g_pfnVectors:
   .word  0
   .word  0
   .word  scheduler_pendSV_handler
-  .word  scheduler_systick_handler
+  .word  SysTick_Handler
   .word  WWDG_IRQHandler                   /* Window WatchDog              */
   .word  0                                 /* Reserved                     */
   .word  RTC_IRQHandler                    /* RTC through the EXTI line    */

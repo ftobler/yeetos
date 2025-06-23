@@ -13,6 +13,7 @@ extern "C" {
 #endif
 
 #include "stdint.h"
+#include "event.h"
 
 
 // for aligning the stack to 4 bytes
@@ -20,20 +21,24 @@ extern "C" {
 
 
 enum {
-	STATE_STOPPED = 0, //task is not started/initialized
-	STATE_RUNNING = 1,     //task is currently running
-	STATE_WAIT_FLAG = 2,   //task is waiting on flags
-	STATE_WAIT_TIME = 3,   //task is waiting time
-	STATE_READY = 4,       //task is ready to run
+	STATE_STOPPED = 0,      // task is not started/initialized
+	STATE_RUNNING = 1,      // task is currently running
+	STATE_WAIT_FLAG = 2,    // task is waiting on flags
+	STATE_WAIT_TIME = 3,    // task is waiting time
+	STATE_WAIT_PROMISE = 4, // task is waiting on a promise resolve
+	STATE_WAIT_EVENTLOOP = 5, // task is in reserve until he receives a new event job
+	STATE_READY = 6,        // task is ready to run
 };
 
 
 typedef struct {
-	uint32_t* stackPointer;
-	uint32_t timeout;
-	uint32_t eventMask;
-	uint32_t eventFlags;
-	uint8_t state;
+	uint32_t* stackPointer;  // pointer to the current location of the tasks stack
+	uint32_t timeout;  // value of the ticks this tasks has yet to sleep. For this it is in a STATE_WAIT_xxx
+	uint32_t eventMask;  // value of the event mask flags the task is currently waiting on
+	uint32_t eventFlags;  // value of the event flags that are set on this task
+	uint64_t promise_id;  // value of the promise the task is currently waiting on
+	uint32_t preemptive_group;  // task will be in cooperative mode for all
+	uint8_t state;  // tasks internal state
 } SchedulerTask_t;
 
 typedef void (*SchedulerTaskFunction)();
@@ -52,7 +57,7 @@ void scheduler_init();
  *     [n] has the highest priority
  * is is not allowed to produce gaps between the IDs, each task from 0 to n needs to be initialized.
  */
-void scheduler_addTask(uint32_t id, SchedulerTaskFunction function, uint8_t* stackBuffer, uint32_t stackSize);
+void scheduler_addTask(uint32_t id, uint32_t preemptive_group, SchedulerTaskFunction function, uint8_t* stackBuffer, uint32_t stackSize);
 
 /**
  * start RTOS
@@ -99,8 +104,17 @@ void scheduler_event_clear(uint32_t eventMask);
 
 void scheduler_systick_handler();
 
+void eventloop_suspend();
+
+void await_promise(Promise_t promise);
+
+void resolve_promise(Promise_t promise);
+
+void eventloop_unsuspend();
+
 
 void scheduler_pendSV_handler();
+
 
 
 #ifdef __cplusplus

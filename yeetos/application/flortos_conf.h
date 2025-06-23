@@ -14,6 +14,7 @@ extern "C" {
 
 
 #define MAY_NUMBER_OF_TASKS 8
+#define EVENT_QUEUE_LENGTH 32
 
 // Define the architecture of the scheduler
 #define SCHEDULER_ARCHITECURE_M0plus

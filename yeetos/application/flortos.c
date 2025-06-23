@@ -10,15 +10,17 @@
 #include "flortos_conf.h"
 
 
-static volatile SchedulerTask_t* currentTask = 0;
+volatile SchedulerTask_t* currentTask = 0;
 static volatile SchedulerTask_t* nextTask;
 
 
 static SchedulerTask_t tasks[MAY_NUMBER_OF_TASKS] = {0};
 static uint32_t highestTask = 0;
+uint32_t eventloop_workers_available = 1;  // if 0 during startup a worker is woken up on event adding. prevent that.
 
 static void scheduler_work();
 static void scheduler_task_time_update();
+static void eventloop_unsuspend_internal();
 
 
 void scheduler_init() {
@@ -26,7 +28,8 @@ void scheduler_init() {
     *(uint32_t volatile *)0xE000ED20 |= (0xFFU << 16);
 }
 
-void scheduler_addTask(uint32_t id, SchedulerTaskFunction function, uint8_t* stackBuffer, uint32_t stackSize) {
+
+void scheduler_addTask(uint32_t id, uint32_t preemptive_group, SchedulerTaskFunction function, uint8_t* stackBuffer, uint32_t stackSize) {
 	SchedulerTask_t* task = &tasks[id];
 	if (id > highestTask) {
 		highestTask = id;
@@ -107,9 +110,16 @@ void scheduler_addTask(uint32_t id, SchedulerTaskFunction function, uint8_t* sta
 	task->eventFlags = 0;
 	task->eventMask = 0;
 	task->state = STATE_READY;
+	task->promise_id = 0;
+	task->preemptive_group = preemptive_group;
 }
 
 void scheduler_join() {
+	tasks[1].state = STATE_WAIT_EVENTLOOP;
+	tasks[2].state = STATE_WAIT_EVENTLOOP;
+	tasks[3].state = STATE_WAIT_EVENTLOOP;
+	tasks[4].state = STATE_WAIT_EVENTLOOP;
+	eventloop_workers_available = 0;
 	__disable_irq();
 	scheduler_work();
 	__enable_irq();
@@ -158,6 +168,110 @@ void scheduler_event_clear(uint32_t eventMask) {
 	task->eventFlags &= ~eventMask;
 }
 
+void eventloop_suspend() {
+	volatile SchedulerTask_t* task = currentTask;
+	task->state = STATE_WAIT_EVENTLOOP;
+	// mark as suspended
+	eventloop_workers_available = 0;
+	scheduler_work();  // will switch tasks
+}
+
+/**
+ * awaits the given promise. During waiting the current task is suspended
+ */
+void await_promise(Promise_t promise) {
+	volatile SchedulerTask_t* task = currentTask;
+	task->promise_id = promise.id;
+	task->state = STATE_WAIT_PROMISE;
+	// mark as suspended since this is the current worker, but this task
+	// needs now to wait.
+	eventloop_workers_available = 0;
+
+	// ensure the eventloop has a worker serving it
+	eventloop_unsuspend();  // will switch tasks
+}
+
+
+
+void eventloop_unsuspend() {
+	//ensure the eventloop has a worker serving it, this one is going to suspend
+	if (eventloop_workers_available == 0) {
+		eventloop_unsuspend_internal();
+		eventloop_workers_available = 1;
+	}
+
+	scheduler_work();  // will switch tasks
+}
+
+__attribute__((optimize("O0")))
+static void eventloop_unsuspend_internal() {
+    uint32_t id = highestTask;
+	SchedulerTask_t* task = &tasks[id];
+	// go through every task id, starting from the highest priority task
+	while (id) {
+		if (task->state == STATE_WAIT_EVENTLOOP || task->state == STATE_READY) {
+			task->state = STATE_READY;
+			return;
+		}
+		// loop variables
+		id--;
+		task--;
+	}
+	while (1) {
+		// FATAL ERROR
+		// No task available to serve event loop.
+		// All tasks are waiting for promises. Or are otherwise blocked
+		// Ensure there are
+		//    a.) enough tasks available to serve the application,
+		//    b.) no logic exhausts tasks by perpetually blocking,
+		//    c.) avoid eventloop tasks being blocked by other events
+	}
+}
+
+
+/**
+ * will resolve the passed promise and pull the task waiting for it out of suspension.
+ */
+__attribute__((optimize("O0")))
+void resolve_promise(Promise_t promise) {
+    //TODO: must interact with scheduler to pull some task out of suspension
+	uint32_t id = highestTask;
+	SchedulerTask_t* task = &tasks[id];
+	// go through every task id, starting from the highest priority task
+	while (id) {
+		if (task->state == STATE_WAIT_PROMISE) {
+			if (task->promise_id == promise.id) {
+				// promise is hereby resolved
+				task->promise_id = 0;
+				task->state = STATE_READY;
+				break; // nothing further to do here. Promise is resolved. We do not switch tasks
+			}
+		}
+//		// if task is runnable then run it.
+//		if (task->state == STATE_READY) {
+//			// found task to run. Exit loop.
+//			nextTask = task;
+//			break;
+//		}
+		// loop variables
+		id--;
+		task--;
+	}
+//	if (id == 0) {
+//		// when nothing else to do run idle task.
+//		// since loop has gotten to id=0 the idle task is already on the pointer.
+//		nextTask = task;
+//	}
+//
+//	// switch task if needed
+//	if (currentTask != nextTask) {
+//		// enable pendSV isr
+//		*(uint32_t volatile *)0xE000ED04 = (1U << 28);
+//	}
+}
+
+
+
 
 __attribute__((optimize("O0")))
 static void scheduler_work() {
@@ -187,6 +301,14 @@ static void scheduler_work() {
 		// when nothing else to do run idle task.
 		// since loop has gotten to id=0 the idle task is already on the pointer.
 		nextTask = task;
+	}
+
+	// check if the new task has a different preemptive group. otherwise exit.
+	if (currentTask &&
+		nextTask->preemptive_group == currentTask->preemptive_group &&
+		currentTask->state == STATE_RUNNING) {
+		// do not switch tasks if the preemptive group is the same
+		nextTask = currentTask;
 	}
 
 	// switch task if needed
@@ -221,8 +343,12 @@ static void scheduler_task_time_update() {
 void scheduler_systick_handler() {
 	uwTick++;
 	scheduler_task_time_update();
-	scheduler_work();
+	//scheduler_work();
 }
+
+
+
+
 
 __attribute((naked))
 __attribute__((optimize("O0")))

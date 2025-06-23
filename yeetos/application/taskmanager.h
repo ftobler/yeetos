@@ -15,6 +15,8 @@ extern "C" {
 
 
 void taskmanager_start();
+void timer_fn(void* arg);
+void utility_fn(void* arg);
 
 
 #ifdef __cplusplus
