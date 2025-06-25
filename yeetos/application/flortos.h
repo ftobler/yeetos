@@ -39,6 +39,7 @@ typedef struct {
 	uint64_t promise_id;  // value of the promise the task is currently waiting on
 	uint32_t preemptive_group;  // task will be in cooperative mode for all
 	uint8_t state;  // tasks internal state
+	uint8_t is_event_task;
 } SchedulerTask_t;
 
 typedef void (*SchedulerTaskFunction)();
@@ -47,6 +48,9 @@ typedef void (*SchedulerTaskFunction)();
  * initialized RTOS
  */
 void scheduler_init();
+
+void scheduler_addEventHandler(uint32_t id, uint32_t preemptive_group, uint8_t* stackBuffer, uint32_t stackSize);
+
 
 /**
  * Add a task to RTOS
@@ -58,6 +62,8 @@ void scheduler_init();
  * is is not allowed to produce gaps between the IDs, each task from 0 to n needs to be initialized.
  */
 void scheduler_addTask(uint32_t id, uint32_t preemptive_group, SchedulerTaskFunction function, uint8_t* stackBuffer, uint32_t stackSize);
+
+
 
 /**
  * start RTOS
@@ -98,21 +104,39 @@ uint32_t scheduler_event_wait_timeout(uint32_t eventWaitMask, uint32_t time);
  */
 void scheduler_event_set(uint32_t id, uint32_t eventSetMask);
 
-
+/**
+ * Clears the given event flags. Does no further interactions
+ */
 void scheduler_event_clear(uint32_t eventMask);
 
-
+/**
+ * tick interrupt
+ */
 void scheduler_systick_handler();
 
+/**
+ * Suspends the given eventloop task
+ */
 void eventloop_suspend();
 
+/**
+ * awaits the given promise. During waiting the current task is suspended
+ */
 void await_promise(Promise_t promise);
 
+/**
+ * Marks a promise as resolved and thus wakes up the corresponding task.
+ */
 void resolve_promise(Promise_t promise);
 
+/**
+ * Unsuspends the event loop, Ensuring exactly one task is active.
+ */
 void eventloop_unsuspend();
 
-
+/**
+ * Task switch interrupt handler
+ */
 void scheduler_pendSV_handler();
 
 

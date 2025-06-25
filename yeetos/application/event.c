@@ -26,7 +26,6 @@ static int queue_size = 0;
 static uint64_t promise_id_counter = 1; // 0 means no promise (null) so the first valid id is 1
 
 static Promise_t empty_promise = {
-//		.resolved = true,
 		.id = 0
 };
 
@@ -56,6 +55,9 @@ void event_push(YeetEvent function, void* arg) {
 void event_push_promise(YeetEvent function, void* arg,  Promise_t promise) {
     if (queue_full()) {
         // Queue is full, do not push
+
+    	// ensure the eventloop has a worker serving it
+        eventloop_unsuspend();
         return;
     }
 
@@ -116,7 +118,6 @@ void event_queue_task() {
 Promise_t create_promise() {
 	Promise_t p;
 	p.id = promise_id_counter;
-//	p.resolved = false;
 	promise_id_counter++;
 	return p;
 }

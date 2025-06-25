@@ -6,6 +6,9 @@ Preemtive minimalistic RTOS for STM32
 ## features
 
 * preemtive task scheduling
+* cooperative task scheduling
+* event queue microtask scheduling
+* stackful async await on microtasks
 * task priorities
 * task delays
 * event wait/notify structure with 32 individual flags and optional timeout
@@ -41,8 +44,8 @@ STACK_ATTR static uint8_t stack1[128];
 
 void taskmanager_start() {
 	scheduler_init();
-	scheduler_addTask(0, taskFn0, stack0, 128);  //idle task
-	scheduler_addTask(1, taskFn1, stack1, 128);  //highest priority task is the last task
+	scheduler_addTask(0, 0, taskFn0, stack0, 128);  //idle task
+	scheduler_addTask(1, 1, taskFn1, stack1, 128);  //highest priority task is the last task
 	scheduler_join();  // start the RTOS (never exits)
 }
 

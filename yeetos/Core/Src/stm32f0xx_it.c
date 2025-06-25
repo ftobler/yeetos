@@ -25,6 +25,7 @@
 
 #include "event.h"
 #include "taskmanager.h"
+#include "flortos.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -133,6 +134,7 @@ void SysTick_Handler(void)
   HAL_IncTick();
   /* USER CODE BEGIN SysTick_IRQn 1 */
   event_push(utility_fn, 0);
+  scheduler_systick_handler();
 
   /* USER CODE END SysTick_IRQn 1 */
 }

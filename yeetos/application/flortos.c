@@ -16,8 +16,9 @@ static volatile SchedulerTask_t* nextTask;
 
 static SchedulerTask_t tasks[MAY_NUMBER_OF_TASKS] = {0};
 static uint32_t highestTask = 0;
-uint32_t eventloop_workers_available = 1;  // if 0 during startup a worker is woken up on event adding. prevent that.
+volatile uint32_t eventloop_workers_available = 1;  // if 0 during startup a worker is woken up on event adding. prevent that.
 
+static SchedulerTask_t* scheduler_addTask_internal(uint32_t id, uint32_t preemptive_group, SchedulerTaskFunction function, uint8_t* stackBuffer, uint32_t stackSize);
 static void scheduler_work();
 static void scheduler_task_time_update();
 static void eventloop_unsuspend_internal();
@@ -29,7 +30,18 @@ void scheduler_init() {
 }
 
 
+void scheduler_addEventHandler(uint32_t id, uint32_t preemptive_group, uint8_t* stackBuffer, uint32_t stackSize) {
+	SchedulerTask_t* task = scheduler_addTask_internal(id, preemptive_group, event_queue_task, stackBuffer, stackSize);
+	task->state = STATE_WAIT_EVENTLOOP;  // event tasks start suspended
+	task->is_event_task = 1;
+}
+
+
 void scheduler_addTask(uint32_t id, uint32_t preemptive_group, SchedulerTaskFunction function, uint8_t* stackBuffer, uint32_t stackSize) {
+	scheduler_addTask_internal(id, preemptive_group, function, stackBuffer, stackSize);
+}
+
+static SchedulerTask_t* scheduler_addTask_internal(uint32_t id, uint32_t preemptive_group, SchedulerTaskFunction function, uint8_t* stackBuffer, uint32_t stackSize) {
 	SchedulerTask_t* task = &tasks[id];
 	if (id > highestTask) {
 		highestTask = id;
@@ -112,15 +124,15 @@ void scheduler_addTask(uint32_t id, uint32_t preemptive_group, SchedulerTaskFunc
 	task->state = STATE_READY;
 	task->promise_id = 0;
 	task->preemptive_group = preemptive_group;
+	task->is_event_task = 0;
+
+	return task;
 }
 
 void scheduler_join() {
-	tasks[1].state = STATE_WAIT_EVENTLOOP;
-	tasks[2].state = STATE_WAIT_EVENTLOOP;
-	tasks[3].state = STATE_WAIT_EVENTLOOP;
-	tasks[4].state = STATE_WAIT_EVENTLOOP;
-	eventloop_workers_available = 0;
 	__disable_irq();
+	eventloop_workers_available = 0;  // currently no task is available, so let this represent it. Eventqueue will be started
+//	eventloop_unsuspend();
 	scheduler_work();
 	__enable_irq();
 }
@@ -176,9 +188,7 @@ void eventloop_suspend() {
 	scheduler_work();  // will switch tasks
 }
 
-/**
- * awaits the given promise. During waiting the current task is suspended
- */
+
 void await_promise(Promise_t promise) {
 	volatile SchedulerTask_t* task = currentTask;
 	task->promise_id = promise.id;
@@ -209,9 +219,11 @@ static void eventloop_unsuspend_internal() {
 	SchedulerTask_t* task = &tasks[id];
 	// go through every task id, starting from the highest priority task
 	while (id) {
-		if (task->state == STATE_WAIT_EVENTLOOP || task->state == STATE_READY) {
-			task->state = STATE_READY;
-			return;
+		if (task->is_event_task) {
+			if (task->state == STATE_WAIT_EVENTLOOP || task->state == STATE_READY) {
+				task->state = STATE_READY;
+				return;
+			}
 		}
 		// loop variables
 		id--;
