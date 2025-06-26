@@ -59,7 +59,7 @@ static void taskFn1() {
 	while (1) {
 		counter1++;
 		scheduler_task_sleep(8);
-		uint8_t event = scheduler_event_wait(0x000A);
+		uint8_t event = scheduler_flags_wait(0x000A);
 		scheduler_task_sleep(8);
 		if (event & 0x0008)
 			scheduler_event_set(4, 0x0004);

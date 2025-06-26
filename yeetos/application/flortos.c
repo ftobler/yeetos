@@ -29,12 +29,12 @@ static uint64_t promise_id_counter = 1; // 0 means no promise (null) so the firs
 
 static const Promise_t empty_promise = { .id = 0 };
 
-volatile SchedulerTask_t* currentTask = 0;
-static volatile SchedulerTask_t* nextTask;
+volatile SchedulerTask_t* current_task = 0;
+static volatile SchedulerTask_t* next_task;
 
 static SchedulerTask_t tasks[MAX_NUMBER_OF_TASKS] = {0};
-static uint32_t highestTask = 0;
-static uint32_t highestEventTask = 0;
+static uint32_t highest_task = 0;
+static uint32_t highest_event_task = 0;
 volatile uint32_t eventloop_workers_available = 1;  // if 0 during startup a worker is woken up on event adding. prevent that.
 
 // --- Private Function Prototypes ---
@@ -52,6 +52,8 @@ static void eventloop_unsuspend_internal();
 
 #define queue_full() (queue_size >= EVENT_QUEUE_LENGTH)
 #define queue_empty() (queue_size == 0)
+#define pendsv_set_lowest_priority() (*(uint32_t volatile *)0xE000ED20 |= (0xFFU << 16))  // set the PendSV interrupt priority to the lowest level 0xF
+#define pendsv_enable_isr() (*(uint32_t volatile *)0xE000ED04 = (1U << 28))  // enable PendSV interrupt
 
 // --- Public Functions ---
 
@@ -95,8 +97,7 @@ void await_call(YeetEvent function, void* arg) {
 
 
 void scheduler_init() {
-	// set the PendSV interrupt priority to the lowest level 0xF
-    *(uint32_t volatile *)0xE000ED20 |= (0xFFU << 16);
+    pendsv_set_lowest_priority();
 }
 
 
@@ -110,15 +111,15 @@ void scheduler_join() {
 
 
 void scheduler_task_sleep(uint32_t time) {
-	volatile SchedulerTask_t* task = currentTask;
+	volatile SchedulerTask_t* task = current_task;
 	task->timeout = time;
 	task->state = STATE_WAIT_TIME;
 	scheduler_work();
 }
 
 
-uint32_t scheduler_event_wait(uint32_t eventWaitMask) {
-	volatile SchedulerTask_t* task = currentTask;
+uint32_t scheduler_flags_wait(uint32_t eventWaitMask) {
+	volatile SchedulerTask_t* task = current_task;
 	task->eventMask = eventWaitMask;
 	task->state = STATE_WAIT_FLAG;
 	scheduler_work();
@@ -128,8 +129,8 @@ uint32_t scheduler_event_wait(uint32_t eventWaitMask) {
 }
 
 
-uint32_t scheduler_event_wait_timeout(uint32_t eventWaitMask, uint32_t time) {
-	volatile SchedulerTask_t* task = currentTask;
+uint32_t scheduler_flags_wait_timeout(uint32_t eventWaitMask, uint32_t time) {
+	volatile SchedulerTask_t* task = current_task;
 	task->eventMask = eventWaitMask;
 	task->timeout = time;
 	task->state = STATE_WAIT_FLAG;
@@ -140,7 +141,7 @@ uint32_t scheduler_event_wait_timeout(uint32_t eventWaitMask, uint32_t time) {
 }
 
 
-void scheduler_event_set(uint32_t id, uint32_t eventSetMask) {
+void scheduler_flags_set(uint32_t id, uint32_t eventSetMask) {
 	// set remote tasks flags
 	tasks[id].eventFlags |= eventSetMask;
     scheduler_work();
@@ -148,13 +149,13 @@ void scheduler_event_set(uint32_t id, uint32_t eventSetMask) {
 
 
 void scheduler_event_clear(uint32_t eventMask) {
-	volatile SchedulerTask_t* task = currentTask;
+	volatile SchedulerTask_t* task = current_task;
 	task->eventFlags &= ~eventMask;
 }
 
 
 void await_promise(Promise_t promise) {
-	volatile SchedulerTask_t* task = currentTask;
+	volatile SchedulerTask_t* task = current_task;
 	task->promise_id = promise.id;
 	task->state = STATE_WAIT_PROMISE;
 	// mark as suspended since this is the current worker, but this task
@@ -168,7 +169,7 @@ void await_promise(Promise_t promise) {
 
 void resolve_promise(Promise_t promise) {
     //TODO: must interact with scheduler to pull some task out of suspension
-	uint32_t id = highestEventTask;
+	uint32_t id = highest_task;
 	SchedulerTask_t* task = &tasks[id];
 	// go through every task id, starting from the highest priority task
 	while (id) {
@@ -236,7 +237,7 @@ static void event_push_promise(YeetEvent function, void* arg,  Promise_t promise
 
 
 static void eventloop_suspend() {
-	volatile SchedulerTask_t* task = currentTask;
+	volatile SchedulerTask_t* task = current_task;
 	task->state = STATE_WAIT_EVENTLOOP;
 	eventloop_workers_available = 0;  // mark as suspended, so eventloop gets re-started
 	scheduler_work();  // will switch tasks
@@ -245,11 +246,11 @@ static void eventloop_suspend() {
 
 static SchedulerTask_t* scheduler_addTask_internal(uint32_t id, uint32_t preemptive_group, SchedulerTaskFunction function, uint8_t* stackBuffer, uint32_t stackSize) {
 	SchedulerTask_t* task = &tasks[id];
-	if (id > highestTask) {
-		highestTask = id;
+	if (id > highest_task) {
+		highest_task = id;
 	}
-	if (id > highestEventTask && function==event_queue_task) {
-		highestEventTask = id;
+	if (id > highest_event_task && function==event_queue_task) {
+		highest_event_task = id;
 	}
 
 	// task id must be in range
@@ -337,7 +338,7 @@ static SchedulerTask_t* scheduler_addTask_internal(uint32_t id, uint32_t preempt
 
 static void eventloop_unsuspend() {
 	//ensure the eventloop has a worker serving it, this one is going to suspend
-	if (currentTask == 0) {
+	if (current_task == 0) {
 		return;
 	}
 	if (eventloop_workers_available == 0) {
@@ -350,7 +351,7 @@ static void eventloop_unsuspend() {
 
 __attribute__((optimize("O0")))
 static void eventloop_unsuspend_internal() {
-    uint32_t id = highestEventTask;
+    uint32_t id = highest_event_task;
 	SchedulerTask_t* task = &tasks[id];
 	// go through every task id, starting from the highest priority task
 	while (id) {
@@ -378,7 +379,7 @@ static void eventloop_unsuspend_internal() {
 
 __attribute__((optimize("O0")))
 static void scheduler_work() {
-	uint32_t id = highestTask;
+	uint32_t id = highest_task;
 	SchedulerTask_t* task = &tasks[id];
 	// go through every task id, starting from the highest priority task
 	while (id) {
@@ -393,7 +394,7 @@ static void scheduler_work() {
 		// if task is runnable then run it.
 		if (task->state == STATE_READY) {
 			// found task to run. Exit loop.
-			nextTask = task;
+			next_task = task;
 			break;
 		}
 		// loop variables
@@ -403,27 +404,27 @@ static void scheduler_work() {
 	if (id == 0) {
 		// when nothing else to do run idle task.
 		// since loop has gotten to id=0 the idle task is already on the pointer.
-		nextTask = task;
+		next_task = task;
 	}
 
 	// check if the new task has a different preemptive group. otherwise exit.
-	if (currentTask &&
-		nextTask->preemptive_group == currentTask->preemptive_group &&
-		currentTask->state == STATE_RUNNING) {
+	if (current_task &&
+		next_task->preemptive_group == current_task->preemptive_group &&
+		current_task->state == STATE_RUNNING) {
 		// do not switch tasks if the preemptive group is the same
-		nextTask = currentTask;
+		next_task = current_task;
 	}
 
 	// switch task if needed
-	if (currentTask != nextTask) {
+	if (current_task != next_task) {
 		// enable pendSV isr
-		*(uint32_t volatile *)0xE000ED04 = (1U << 28);
+		pendsv_enable_isr();
 	}
 }
 
 
 static void scheduler_task_time_update() {
-	uint32_t id = highestTask;
+	uint32_t id = highest_task;
 	SchedulerTask_t* task = &tasks[id];
 	// go through every task id, starting from the highest priority task
 	while (id) {
@@ -455,22 +456,22 @@ void scheduler_pendSV_handler() {
 	__disable_irq();
 	volatile register uint32_t* stackPointer asm ("sp");
 
-	if (currentTask) {
+	if (current_task) {
 		asm volatile("push {r4-r7}"); // push additional registers
 		asm volatile("mov r3, r8  \n push {r3}" : : : "r3","memory"); // these registers can not be handled by push
 		asm volatile("mov r3, r9  \n push {r3}" : : : "r3","memory"); // "r3" in the clobber list informs the compiler that r3 will be used in this section
 		asm volatile("mov r3, r10 \n push {r3}" : : : "r3","memory"); // "memory" in the clobber list informs the compiler that memory content may have changed
 		asm volatile("mov r3, r11 \n push {r3}" : : : "r3","memory"); // "sp" in clobber list is deprecated and not needed
-		currentTask->stackPointer = (uint32_t*)stackPointer;
+		current_task->stackPointer = (uint32_t*)stackPointer;
 	}
 
-	stackPointer = nextTask->stackPointer;
+	stackPointer = next_task->stackPointer;
 	asm volatile("pop {r3}\n mov r11, r3" : : : "r3","memory");// these registers can not be handled by push
 	asm volatile("pop {r3}\n mov r10, r3" : : : "r3","memory");
 	asm volatile("pop {r3}\n mov  r9, r3" : : : "r3","memory");
 	asm volatile("pop {r3}\n mov  r8, r3" : : : "r3","memory");
 	asm volatile("pop {r4-r7}"); // pop additional registers
-	currentTask = nextTask;
+	current_task = next_task;
 
     __enable_irq();
     asm volatile("BX lr");  // return

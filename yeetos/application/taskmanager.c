@@ -150,14 +150,14 @@ static void taskFn1() {
 	while (1) {
 		counter1++;
 		scheduler_task_sleep(8);
-		scheduler_event_set(8, 0x0010);
-		uint32_t event = scheduler_event_wait(0x000A);
+		scheduler_flags_set(8, 0x0010);
+		uint32_t flags = scheduler_flags_wait(0x000A);
 		scheduler_task_sleep(8);
-		if (event & 0x1000) {
+		if (flags & 0x1000) {
 			scheduler_event_clear(0x1000);
 		}
-		if (event & 0x0008)
-			scheduler_event_set(7, 0x0004);
+		if (flags & 0x0008)
+			scheduler_flags_set(7, 0x0004);
 	}
 }
 
@@ -166,7 +166,7 @@ static void taskFn2() {
 	while (1) {
 		counter2++;
 		scheduler_task_sleep(10);
-		scheduler_event_set(1, 0x0002);
+		scheduler_flags_set(1, 0x0002);
 		await_call(awaited_function, (void*)0xDEADBEEF);
 	}
 }
@@ -177,7 +177,7 @@ static void taskFn3() {
 		counter3++;
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 1);
 		scheduler_task_sleep(100);
-		scheduler_event_set(1, 0x0008 | 0x1000);
+		scheduler_flags_set(1, 0x0008 | 0x1000);
 	}
 }
 
@@ -192,7 +192,7 @@ static void promise_event_fn(void* arg) {
 static void taskFn4() {
 	while (1) {
 		counter4++;
-		scheduler_event_wait_timeout(0x0004, 75);
+		scheduler_flags_wait_timeout(0x0004, 75);
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 0);
 		event_push(promise_event_fn, 0);
 	}
@@ -203,6 +203,6 @@ static void taskFn5() {
 //	HAL_TIM_Base_Start_IT(&htim14);
 	while (1) {
 		counter5++;
-		scheduler_event_wait(0x0010);
+		scheduler_flags_wait(0x0010);
 	}
 }
