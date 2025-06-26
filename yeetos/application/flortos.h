@@ -13,7 +13,39 @@ extern "C" {
 #endif
 
 #include "stdint.h"
-#include "event.h"
+#include "flortos_conf.h"
+
+
+typedef void (*YeetEvent)(void*);
+
+
+typedef struct {
+	uint64_t id;
+} Promise_t;
+
+
+/**
+ * creates a new unresolved promise. The promise is bound to the task that will await it
+ */
+Promise_t create_promise();
+
+/**
+ * Spawns a new task and halts the current task until the new task has finished.
+ * Will create and await a promise internally
+ */
+void await_call(YeetEvent function, void* arg);
+
+
+/**
+ * Push a new event onto the queue
+ */
+void event_push(YeetEvent function, void* arg);
+
+
+/**
+ * worker thread function for the event tasks
+ */
+void event_queue_task();
 
 
 // for aligning the stack to 4 bytes
@@ -115,11 +147,6 @@ void scheduler_event_clear(uint32_t eventMask);
 void scheduler_systick_handler();
 
 /**
- * Suspends the given eventloop task
- */
-void eventloop_suspend();
-
-/**
  * awaits the given promise. During waiting the current task is suspended
  */
 void await_promise(Promise_t promise);
@@ -128,11 +155,6 @@ void await_promise(Promise_t promise);
  * Marks a promise as resolved and thus wakes up the corresponding task.
  */
 void resolve_promise(Promise_t promise);
-
-/**
- * Unsuspends the event loop, Ensuring exactly one task is active.
- */
-void eventloop_unsuspend();
 
 /**
  * Task switch interrupt handler
