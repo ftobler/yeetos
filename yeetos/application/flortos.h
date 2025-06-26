@@ -25,13 +25,14 @@ typedef struct {
 
 
 /**
- * creates a new unresolved promise. The promise is bound to the task that will await it
+ * Creates a new unresolved promise. The promise is bound to the task that will await it.
  */
 Promise_t create_promise();
 
 /**
  * Spawns a new task and halts the current task until the new task has finished.
- * Will create and await a promise internally
+ * Will create and await a promise internally.
+ * It is only allowed to call this function from within a event.
  */
 void await_call(YeetEvent function, void* arg);
 
@@ -69,7 +70,7 @@ typedef struct {
 	uint32_t eventMask;  // value of the event mask flags the task is currently waiting on
 	uint32_t eventFlags;  // value of the event flags that are set on this task
 	uint64_t promise_id;  // value of the promise the task is currently waiting on
-	uint32_t preemptive_group;  // task will be in cooperative mode for all
+	uint16_t preemptive_group;  // task will be in cooperative mode for all
 	uint8_t state;  // tasks internal state
 	uint8_t is_event_task;
 } SchedulerTask_t;
@@ -77,10 +78,13 @@ typedef struct {
 typedef void (*SchedulerTaskFunction)();
 
 /**
- * initialized RTOS
+ * Initializes the RTOS scheduler.
  */
 void scheduler_init();
 
+/**
+ * Adds an event handler task to the scheduler.
+ */
 void scheduler_addEventHandler(uint32_t id, uint32_t preemptive_group, uint8_t* stackBuffer, uint32_t stackSize);
 
 
@@ -142,7 +146,7 @@ void scheduler_event_set(uint32_t id, uint32_t eventSetMask);
 void scheduler_event_clear(uint32_t eventMask);
 
 /**
- * tick interrupt
+ * Handles the SysTick interrupt for task timing.
  */
 void scheduler_systick_handler();
 
@@ -157,7 +161,7 @@ void await_promise(Promise_t promise);
 void resolve_promise(Promise_t promise);
 
 /**
- * Task switch interrupt handler
+ * Handles the PendSV interrupt for context switching.
  */
 void scheduler_pendSV_handler();
 

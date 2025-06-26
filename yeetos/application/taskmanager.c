@@ -22,14 +22,15 @@ static void taskFn2();
 static void taskFn3();
 static void taskFn4();
 static void taskFn5();
+static void awaited_function(void* arg);
+void promise_resolver_fn(void* arg);
 
-#define STACK_SIZE 208
+#define STACK_SIZE 232
 
 // task stacks
 STACK_ATTR static uint8_t stack_idle[STACK_SIZE];
 STACK_ATTR static uint8_t stack_event0[STACK_SIZE];
 STACK_ATTR static uint8_t stack_event1[STACK_SIZE];
-STACK_ATTR static uint8_t stack_event2[STACK_SIZE];
 STACK_ATTR static uint8_t stack1[STACK_SIZE];
 STACK_ATTR static uint8_t stack2[STACK_SIZE];
 STACK_ATTR static uint8_t stack3[STACK_SIZE];
@@ -47,6 +48,9 @@ static int counter2 = 0;
 static int counter3 = 0;
 static int counter4 = 0;
 static int counter5 = 0;
+static int counter_awaited = 0;
+static Promise_t promise1;
+static int promise_resolved_count = 0;
 //static int counter3 = 0;
 //static int counter4 = 0;
 //static int counter5 = 0;
@@ -62,8 +66,6 @@ void taskmanager_start() {
 	scheduler_addTask(1, 1, taskFn1, stack1, STACK_SIZE);
 	scheduler_addEventHandler(2, 2, stack_event0, STACK_SIZE);
 	scheduler_addEventHandler(3, 2, stack_event1, STACK_SIZE);
-	scheduler_addEventHandler(4, 2, stack_event2, STACK_SIZE);
-//	scheduler_addEventHandler(5, 2, stack_event3, STACK_SIZE);
 	scheduler_addTask(5, 3, taskFn2, stack2, STACK_SIZE);
 	scheduler_addTask(6, 3, taskFn3, stack3, STACK_SIZE);
 	scheduler_addTask(7, 3, taskFn4, stack4, STACK_SIZE);
@@ -94,7 +96,18 @@ void utility_fn(void* arg) {
 }
 
 
+void promise_resolver_fn(void* arg) {
+    resolve_promise(promise1);
+    promise_resolved_count++;
+}
 
+
+static void awaited_function(void* arg) {
+    counter_awaited++;
+    if ((intptr_t)arg == 0xDEADBEEF) {
+        counter_awaited++;
+    }
+}
 
 
 static void idle_task() {
@@ -138,8 +151,11 @@ static void taskFn1() {
 		counter1++;
 		scheduler_task_sleep(8);
 		scheduler_event_set(8, 0x0010);
-		uint8_t event = scheduler_event_wait(0x000A);
+		uint32_t event = scheduler_event_wait(0x000A);
 		scheduler_task_sleep(8);
+		if (event & 0x1000) {
+			scheduler_event_clear(0x1000);
+		}
 		if (event & 0x0008)
 			scheduler_event_set(7, 0x0004);
 	}
@@ -151,6 +167,7 @@ static void taskFn2() {
 		counter2++;
 		scheduler_task_sleep(10);
 		scheduler_event_set(1, 0x0002);
+		await_call(awaited_function, (void*)0xDEADBEEF);
 	}
 }
 
@@ -160,8 +177,15 @@ static void taskFn3() {
 		counter3++;
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 1);
 		scheduler_task_sleep(100);
-		scheduler_event_set(1, 0x0008);
+		scheduler_event_set(1, 0x0008 | 0x1000);
 	}
+}
+
+
+static void promise_event_fn(void* arg) {
+	promise1 = create_promise();
+	event_push(promise_resolver_fn, 0);
+	await_promise(promise1);
 }
 
 
@@ -170,6 +194,7 @@ static void taskFn4() {
 		counter4++;
 		scheduler_event_wait_timeout(0x0004, 75);
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 0);
+		event_push(promise_event_fn, 0);
 	}
 }
 

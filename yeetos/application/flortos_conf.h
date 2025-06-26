@@ -13,7 +13,7 @@ extern "C" {
 #endif
 
 
-#define MAY_NUMBER_OF_TASKS 9
+#define MAX_NUMBER_OF_TASKS 9
 #define EVENT_QUEUE_LENGTH 8
 
 // Define the architecture of the scheduler

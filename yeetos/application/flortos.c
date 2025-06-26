@@ -32,7 +32,7 @@ static const Promise_t empty_promise = { .id = 0 };
 volatile SchedulerTask_t* currentTask = 0;
 static volatile SchedulerTask_t* nextTask;
 
-static SchedulerTask_t tasks[MAY_NUMBER_OF_TASKS] = {0};
+static SchedulerTask_t tasks[MAX_NUMBER_OF_TASKS] = {0};
 static uint32_t highestTask = 0;
 static uint32_t highestEventTask = 0;
 volatile uint32_t eventloop_workers_available = 1;  // if 0 during startup a worker is woken up on event adding. prevent that.
@@ -221,21 +221,15 @@ static Event_t* event_pull() {
 
 
 static void event_push_promise(YeetEvent function, void* arg,  Promise_t promise) {
-    if (queue_full()) {
-        // Queue is full, do not push
+    if (!queue_full()) {
+    	// push
+        queue[queue_tail].function = function;
+        queue[queue_tail].arg = arg;
+        queue[queue_tail].promise_to_resolve = promise;
 
-    	// ensure the eventloop has a worker serving it
-        eventloop_unsuspend();
-        return;
+        queue_tail = (queue_tail + 1) % EVENT_QUEUE_LENGTH;
+        queue_size++;
     }
-
-    queue[queue_tail].function = function;
-    queue[queue_tail].arg = arg;
-    queue[queue_tail].promise_to_resolve = promise;
-
-    queue_tail = (queue_tail + 1) % EVENT_QUEUE_LENGTH;
-    queue_size++;
-
 	// ensure the eventloop has a worker serving it
     eventloop_unsuspend();
 }
@@ -244,8 +238,7 @@ static void event_push_promise(YeetEvent function, void* arg,  Promise_t promise
 static void eventloop_suspend() {
 	volatile SchedulerTask_t* task = currentTask;
 	task->state = STATE_WAIT_EVENTLOOP;
-	// mark as suspended
-	eventloop_workers_available = 0;
+	eventloop_workers_available = 0;  // mark as suspended, so eventloop gets re-started
 	scheduler_work();  // will switch tasks
 }
 
@@ -260,7 +253,7 @@ static SchedulerTask_t* scheduler_addTask_internal(uint32_t id, uint32_t preempt
 	}
 
 	// task id must be in range
-	if (id >= MAY_NUMBER_OF_TASKS) {
+	if (id >= MAX_NUMBER_OF_TASKS) {
 		while (1) {
 			//trap. Make sure task id is in range. Configure more tasks in _conf.h
 		}
