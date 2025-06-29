@@ -12,7 +12,7 @@
 #include "flortos.h"
 
 
-extern TIM_HandleTypeDef htim14;
+extern TIM_HandleTypeDef htim11;
 
 // task entry functions
 static void idle_task();
@@ -23,14 +23,20 @@ static void taskFn3();
 static void taskFn4();
 static void taskFn5();
 static void awaited_function(void* arg);
-void promise_resolver_fn(void* arg);
+static void promise_resolver_fn(void* arg);
+static void promise_event_fn(void* arg);
+static void promise_await_fn(void* arg);
 
-#define STACK_SIZE 232
+
+
+#define STACK_SIZE 512
 
 // task stacks
 STACK_ATTR static uint8_t stack_idle[STACK_SIZE];
 STACK_ATTR static uint8_t stack_event0[STACK_SIZE];
 STACK_ATTR static uint8_t stack_event1[STACK_SIZE];
+STACK_ATTR static uint8_t stack_event2[STACK_SIZE];
+STACK_ATTR static uint8_t stack_event3[STACK_SIZE];
 STACK_ATTR static uint8_t stack1[STACK_SIZE];
 STACK_ATTR static uint8_t stack2[STACK_SIZE];
 STACK_ATTR static uint8_t stack3[STACK_SIZE];
@@ -50,6 +56,7 @@ static int counter4 = 0;
 static int counter5 = 0;
 static int counter_awaited = 0;
 static Promise_t promise1;
+static Promise_t promise2;
 static int promise_resolved_count = 0;
 //static int counter3 = 0;
 //static int counter4 = 0;
@@ -61,23 +68,26 @@ static void startup_fn(void* arg);
 
 void taskmanager_start() {
 	scheduler_init();
+	int i = 0;
 
-	scheduler_addTask(0, 0, idle_task, stack_idle, STACK_SIZE);  //idle task
-	scheduler_addTask(1, 1, taskFn1, stack1, STACK_SIZE);
-	scheduler_addEventHandler(2, 2, stack_event0, STACK_SIZE);
-	scheduler_addEventHandler(3, 2, stack_event1, STACK_SIZE);
-	scheduler_addTask(5, 3, taskFn2, stack2, STACK_SIZE);
-	scheduler_addTask(6, 3, taskFn3, stack3, STACK_SIZE);
-	scheduler_addTask(7, 3, taskFn4, stack4, STACK_SIZE);
-	scheduler_addTask(8, 4, taskFn5, stack5, STACK_SIZE);  //highest priority task is the last task
+	scheduler_addTask(i++, 0, idle_task, stack_idle, STACK_SIZE);  //idle task
+	scheduler_addTask(i++, 1, taskFn1, stack1, STACK_SIZE);
+	scheduler_addEventHandler(i++, 2, stack_event0, STACK_SIZE);
+	scheduler_addEventHandler(i++, 2, stack_event1, STACK_SIZE);
+	scheduler_addEventHandler(i++, 2, stack_event2, STACK_SIZE);
+	scheduler_addEventHandler(i++, 2, stack_event3, STACK_SIZE);
+	scheduler_addTask(i++, 3, taskFn2, stack2, STACK_SIZE);
+	scheduler_addTask(i++, 3, taskFn3, stack3, STACK_SIZE);
+	scheduler_addTask(i++, 3, taskFn4, stack4, STACK_SIZE);
+	scheduler_addTask(i++, 4, taskFn5, stack5, STACK_SIZE);  //highest priority task is the last task
 
-	event_push(startup_fn, 0);
+//	event_push(startup_fn, 0);
 	scheduler_join();  // start the RTOS (never exits)
 }
 
 static void startup_fn(void* arg) {
 	counterEvtStart++;
-	HAL_TIM_Base_Start_IT(&htim14);
+	HAL_TIM_Base_Start_IT(&htim11);
 	event_push(utility_fn, 0);
 	event_push(utility_fn, 0);
 }
@@ -96,7 +106,7 @@ void utility_fn(void* arg) {
 }
 
 
-void promise_resolver_fn(void* arg) {
+static void promise_resolver_fn(void* arg) {
     resolve_promise(promise1);
     promise_resolved_count++;
 }
@@ -183,6 +193,11 @@ static void taskFn3() {
 
 
 static void promise_event_fn(void* arg) {
+	event_push(promise_resolver_fn, 0);
+}
+
+
+static void promise_await_fn(void* arg) {
 	promise1 = create_promise();
 	event_push(promise_resolver_fn, 0);
 	await_promise(promise1);
@@ -192,9 +207,17 @@ static void promise_event_fn(void* arg) {
 static void taskFn4() {
 	while (1) {
 		counter4++;
+		promise2 = create_promise();
 		scheduler_flags_wait_timeout(0x0004, 75);
+		resolve_promise(promise2);
 		HAL_GPIO_WritePin(GPIOA, GPIO_PIN_4, 0);
+
+		promise1 = create_promise();
 		event_push(promise_event_fn, 0);
+		await_promise(promise1);
+
+
+		event_push(promise_await_fn, 0);
 	}
 }
 
@@ -204,5 +227,6 @@ static void taskFn5() {
 	while (1) {
 		counter5++;
 		scheduler_flags_wait(0x0010);
+//		await_promise(promise2);
 	}
 }

@@ -33,8 +33,9 @@ volatile SchedulerTask_t* current_task = 0;
 static volatile SchedulerTask_t* next_task;
 
 static SchedulerTask_t tasks[MAX_NUMBER_OF_TASKS] = {0};
-static uint32_t highest_task = 0;
-static uint32_t highest_event_task = 0;
+static uint16_t highest_task = 0;
+static uint16_t highest_event_task = 0;
+static uint16_t lowest_event_task = MAX_NUMBER_OF_TASKS;
 volatile uint32_t eventloop_workers_available = 1;  // if 0 during startup a worker is woken up on event adding. prevent that.
 
 // --- Private Function Prototypes ---
@@ -158,16 +159,26 @@ void await_promise(Promise_t promise) {
 	volatile SchedulerTask_t* task = current_task;
 	task->promise_id = promise.id;
 	task->state = STATE_WAIT_PROMISE;
-	// mark as suspended since this is the current worker, but this task
-	// needs now to wait.
-	eventloop_workers_available = 0;
 
-	// ensure the eventloop has a worker serving it
-	eventloop_unsuspend();  // will switch tasks
+	if (task->is_event_task) {
+		// mark as suspended since this is the current worker, but this task
+		// needs now to wait.
+		eventloop_workers_available = 0;
+
+		// ensure the eventloop has a worker serving it
+		eventloop_unsuspend();  // will switch tasks
+	} else {
+		// regular task
+		// do a normal re-scheduling
+		scheduler_work();
+	}
 }
 
 
 void resolve_promise(Promise_t promise) {
+	if (promise.id == 0) {
+		return;
+	}
     //TODO: must interact with scheduler to pull some task out of suspension
 	uint32_t id = highest_task;
 	SchedulerTask_t* task = &tasks[id];
@@ -249,8 +260,13 @@ static SchedulerTask_t* scheduler_addTask_internal(uint32_t id, uint32_t preempt
 	if (id > highest_task) {
 		highest_task = id;
 	}
-	if (id > highest_event_task && function==event_queue_task) {
-		highest_event_task = id;
+	if (function == event_queue_task) {
+		if (id > highest_event_task) {
+			highest_event_task = id;
+		}
+		if (id < lowest_event_task) {
+			lowest_event_task = id;
+		}
 	}
 
 	// task id must be in range
@@ -351,10 +367,10 @@ static void eventloop_unsuspend() {
 
 __attribute__((optimize("O0")))
 static void eventloop_unsuspend_internal() {
-    uint32_t id = highest_event_task;
+    uint16_t id = highest_event_task;
 	SchedulerTask_t* task = &tasks[id];
 	// go through every task id, starting from the highest priority task
-	while (id) {
+	while (id >= lowest_event_task) {
 		if (task->is_event_task) {
 			if (task->state == STATE_WAIT_EVENTLOOP || task->state == STATE_READY) {
 				task->state = STATE_READY;
@@ -365,21 +381,21 @@ static void eventloop_unsuspend_internal() {
 		id--;
 		task--;
 	}
-	while (1) {
-		// FATAL ERROR
-		// No task available to serve event loop.
-		// All tasks are waiting for promises. Or are otherwise blocked
-		// Ensure there are
-		//    a.) enough tasks available to serve the application,
-		//    b.) no logic exhausts tasks by perpetually blocking,
-		//    c.) avoid eventloop tasks being blocked by other events
-	}
+//	while (1) {
+//		// FATAL ERROR
+//		// No task available to serve event loop.
+//		// All tasks are waiting for promises. Or are otherwise blocked
+//		// Ensure there are
+//		//    a.) enough tasks available to serve the application,
+//		//    b.) no logic exhausts tasks by perpetually blocking,
+//		//    c.) avoid eventloop tasks being blocked by other events
+//	}
 }
 
 
 __attribute__((optimize("O0")))
 static void scheduler_work() {
-	uint32_t id = highest_task;
+	uint16_t id = highest_task;
 	SchedulerTask_t* task = &tasks[id];
 	// go through every task id, starting from the highest priority task
 	while (id) {
@@ -424,7 +440,7 @@ static void scheduler_work() {
 
 
 static void scheduler_task_time_update() {
-	uint32_t id = highest_task;
+	uint16_t id = highest_task;
 	SchedulerTask_t* task = &tasks[id];
 	// go through every task id, starting from the highest priority task
 	while (id) {
@@ -484,7 +500,7 @@ void scheduler_pendSV_handler() {
 	volatile register uint32_t* stackPointer asm ("sp");
 	asm volatile("isb"); // Flush instruction pipeline
 
-	if (currentTask) {
+	if (current_task) {
 		// Save FPU state (floating-point registers S16-S31)
 		asm volatile("vstmdb sp!, {s16-s31}" : : : "memory"); // Store FPU registers
 		// Save general-purpose registers R4-R11
@@ -492,11 +508,11 @@ void scheduler_pendSV_handler() {
 		// Memory barriers to ensure everything is written before switching
 		asm volatile("dsb \n isb"); // Ensures memory accesses and pipeline flushing
 		// Save stack pointer of the current task
-		currentTask->stackPointer = (uint32_t*)stackPointer;
+		current_task->stackPointer = (uint32_t*)stackPointer;
 	}
 
 	// Switch to the new task's stack pointer
-	stackPointer = nextTask->stackPointer;
+	stackPointer = next_task->stackPointer;
 
 	// Ensure the stack is properly aligned (optional, depending on alignment settings)
 	asm volatile("dsb \n isb"); // Synchronization to make sure all changes are applied
@@ -506,7 +522,7 @@ void scheduler_pendSV_handler() {
 	asm volatile("vldmia sp!, {s16-s31}" : : : "memory");
 
 	// Update the current task to the next task
-	currentTask = nextTask;
+	current_task = next_task;
 
 	__enable_irq();
 
