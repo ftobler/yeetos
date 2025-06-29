@@ -13,12 +13,12 @@ extern "C" {
 #endif
 
 
-#define MAX_NUMBER_OF_TASKS 9
-#define EVENT_QUEUE_LENGTH 8
+#define MAX_NUMBER_OF_TASKS 16
+#define EVENT_QUEUE_LENGTH 16
 
 // Define the architecture of the scheduler
-#define SCHEDULER_ARCHITECURE_M0plus
-// #define SCHEDULER_ARCHITECURE_M4F
+//#define SCHEDULER_ARCHITECURE_M0plus
+ #define SCHEDULER_ARCHITECURE_M4F
 
 
 #ifdef __cplusplus
